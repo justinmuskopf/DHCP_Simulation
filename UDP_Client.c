@@ -7,11 +7,15 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
- 
+#include "DHCP.h" 
+
 #define SERVER "127.0.0.1"
-#define BUFLEN 512  //Max length of buffer
 #define PORT 6700   //The port on which to send data
  
+static const int PACKET_SIZE = sizeof(DHCP_Packet) + 1;
+
+void chooseRandomIP(DHCP_Packet *);
+
 void die(char *s)
 {
     perror(s);
@@ -22,47 +26,67 @@ int main(void)
 {
     struct sockaddr_in si_svr;
     int sockfd, i, slen = sizeof(si_svr);
-    char buf[BUFLEN];
-    char message[BUFLEN];
- 
+    DHCP_Packet pkt; 
+    char *payload = malloc(PACKET_SIZE);
+
+    //Create socket
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
-    {
         die("socket");
-    }
  
+    //Zero memory of server reference
     memset((char *) &si_svr, 0, sizeof(si_svr));
     si_svr.sin_family = AF_INET;
     si_svr.sin_port = htons(PORT);
      
+    //Convert hostname to address
     if (inet_aton(SERVER, &si_svr.sin_addr) == 0) 
-    {
-        fprintf(stderr, "inet_aton() failed\n");
-        exit(1);
-    }
+        die("inet_aton()");
  
-    while(1)
-    {
-        printf("Enter message : ");
-        scanf("%s", message);
+    //Initialize first packet
+    initCliDHCP(&pkt);
          
-        //send the message
-        if (sendto(sockfd, message, strlen(message), 0, (struct sockaddr *)&si_svr, slen)==-1)
-        {
-            die("sendto()");
-        }
+    //Send the packet
+    if (sendto(sockfd, (DHCP_Packet *)&pkt, PACKET_SIZE, 0, (struct sockaddr *)&si_svr, slen) == -1)
+        die("sendto()");
          
-        //receive a reply and print it
-        //clear the buffer by filling null, it might have previously received data
-        memset(buf,'\0', BUFLEN);
-        //try to receive some data, this is a blocking call
-        if (recvfrom(sockfd, buf, BUFLEN, 0, (struct sockaddr *) &si_svr, &slen) == -1)
-        {
-            die("recvfrom()");
-        }
-     
-        printf("%s", buf);    
-    }
+    //Receive from server
+    if (recvfrom(sockfd, (DHCP_Packet *)&pkt, PACKET_SIZE, 0, (struct sockaddr *) &si_svr, &slen) == -1)
+        die("recvfrom()");
  
+    printPacket(pkt, "OFFER");
+
+    chooseRandomIP(&pkt);
+
+    pkt.trans_id++;
+
+    //Send the packet
+    if (sendto(sockfd, (DHCP_Packet *)&pkt, PACKET_SIZE, 0, (struct sockaddr *)&si_svr, slen) == -1)
+        die("sendto()");
+
+
+    //Receive from server
+    if (recvfrom(sockfd, (DHCP_Packet *)&pkt, PACKET_SIZE, 0, (struct sockaddr *) &si_svr, &slen) == -1)
+        die("recvfrom()");
+    printPacket(pkt, "ACK");
+
     close(sockfd);
+    free(payload);
+
     return 0;
+}
+
+//Choose an offered IP at random
+void chooseRandomIP(DHCP_Packet *pkt)
+{
+    int idx = rand() % OFFER_NUM;
+    
+    strcpy(pkt -> yiaddr[0], pkt -> yiaddr[idx]);
+  
+    int i;
+    for (i = 0; i < OFFER_NUM; i++)
+    {
+        if (i == idx)
+            continue;
+        bzero(pkt -> yiaddr[i], IP_LEN);
+    }
 }
