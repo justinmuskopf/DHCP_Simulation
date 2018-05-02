@@ -1,5 +1,8 @@
 /*
-    Simple udp client
+    Author      : Justin Muskopf
+    Course      : CSCE 3530.501
+    Assignment  : Programming Assignment 4
+    Description : DHCP Simulator
 */
 #include <stdio.h>
 #include <string.h>
@@ -7,40 +10,49 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <netdb.h>
 #include "DHCP.h" 
 
-#define SERVER "127.0.0.1"
-#define PORT 6700   //The port on which to send data
- 
-static const int PACKET_SIZE = sizeof(DHCP_Packet) + 1;
+#define SERVER "cse01"
 
+//Chooses random IP 
 void chooseRandomIP(DHCP_Packet *);
 
+//Error and die
 void die(char *s)
 {
     perror(s);
     exit(1);
 }
  
-int main(void)
+int main(int argc, char *argv[])
 {
     struct sockaddr_in si_svr;
+    struct hostent *host;
     int sockfd, i, slen = sizeof(si_svr);
     DHCP_Packet pkt; 
-    char *payload = malloc(PACKET_SIZE);
+    int port;
+
+    //make sure port is given
+    if (argc != 2)
+    {
+        printf("Usage: %s [PORT NUMBER]\n", argv[0]);
+        exit(1);
+    }
+    port = atoi(argv[1]);
 
     //Create socket
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
         die("socket");
- 
+     
+    if ((host = gethostbyname(SERVER)) == NULL)
+        die("gethostbyname()");
+
     //Zero memory of server reference
     memset((char *) &si_svr, 0, sizeof(si_svr));
     si_svr.sin_family = AF_INET;
-    si_svr.sin_port = htons(PORT);
-     
-    //Convert hostname to address
-    if (inet_aton(SERVER, &si_svr.sin_addr) == 0) 
-        die("inet_aton()");
+    si_svr.sin_port = htons(port);
+    memcpy(&si_svr.sin_addr, host -> h_addr, host -> h_length);
  
     //Initialize first packet
     initCliDHCP(&pkt);
@@ -55,6 +67,7 @@ int main(void)
  
     printPacket(pkt, "OFFER");
 
+    //Choose randomly from offered IPs
     chooseRandomIP(&pkt);
 
     pkt.trans_id++;
@@ -70,7 +83,6 @@ int main(void)
     printPacket(pkt, "ACK");
 
     close(sockfd);
-    free(payload);
 
     return 0;
 }

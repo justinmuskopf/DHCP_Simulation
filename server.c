@@ -1,5 +1,8 @@
 /*
-    Simple udp server
+    Author      : Justin Muskopf
+    Course      : CSCE 3530.501
+    Assignment  : Programming Assignment 4
+    Description : DHCP Simulator
 */
 #include <stdio.h> 
 #include <string.h>
@@ -9,12 +12,8 @@
 #include <unistd.h> 
 #include "DHCP.h"
 
-#define BUFLEN 512  //Max length of buffer
-#define PORT 6700   //The port on which to listen for incoming data
- 
+//Replicate bool datatype
 typedef enum {FALSE, TRUE} BOOL;
-
-static const int PACKET_SIZE = sizeof(DHCP_Packet) + 1;
 
 //Error and die
 void die(char *s)
@@ -46,17 +45,24 @@ BOOL isValidAddress(char *addr)
 }
  
 
-
-
-int main(void)
+int main(int argc, char *argv[])
 {
     struct sockaddr_in si_svr, si_client;
     int sockfd, recv_len;
     int cli_len = sizeof(si_client);
+    int port;
     char gateway[IP_LEN];
     char subnet[IP_LEN];
-    char *payload = malloc(PACKET_SIZE);
     DHCP_Packet pkt; 
+
+    //Make sure port is given
+    if (argc != 2)
+    {
+        printf("USAGE: %s [PORT NUMBER]\n", argv[0]);
+        exit(1);
+    }
+
+    port = atoi(argv[1]);
 
     //Get valid gateway
     do
@@ -81,14 +87,15 @@ int main(void)
     memset((char *) &si_svr, 0, sizeof(si_svr));
      
     si_svr.sin_family = AF_INET;
-    si_svr.sin_port = htons(PORT);
+    si_svr.sin_port = htons(port);
     si_svr.sin_addr.s_addr = htonl(INADDR_ANY);
      
     //bind socket to port
     if (bind(sockfd, (struct sockaddr*)&si_svr, sizeof(si_svr)) == -1)
         die("bind");
 
-    while (1)
+    //Accept clients indefinitely
+    while (TRUE)
     {
      
         printf("Waiting for client...\n");
@@ -98,6 +105,7 @@ int main(void)
             die("recvfrom()");
         printPacket(pkt, "DISCOVER");
     
+        //Create response packet and init
         DHCP_Packet send_pkt;
         initSrvDHCP(&send_pkt, gateway, subnet);
         send_pkt.trans_id = pkt.trans_id;
@@ -112,7 +120,9 @@ int main(void)
             die("recvfrom()");
         printPacket(pkt, "REQUEST");
 
-        
+        //Client accepted IP
+        acceptIP(pkt.yiaddr[0]);        
+
         //ACK response
         pkt.ack = 1;
         if (sendto(sockfd, (DHCP_Packet *)&pkt, PACKET_SIZE, 0, (struct sockaddr*) &si_client, cli_len) == -1)
@@ -121,7 +131,5 @@ int main(void)
 
     close(sockfd);
     
-    free(payload);
-
     return 0;
 }

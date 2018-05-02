@@ -1,8 +1,8 @@
 all: clean svr cli
 	
 svr:
-	gcc UDP_Server.c DHCP.c -o svr
+	gcc server.c DHCP.c -o dhcp
 cli:
-	gcc UDP_Client.c DHCP.c -o cli
+	gcc client.c DHCP.c -o client
 clean:
-	rm -f svr cli
+	rm -f dhcp client

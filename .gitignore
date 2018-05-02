@@ -1,5 +1,5 @@
 #Client executable
-cli
+client
 
 #Server executable
-svr
+dhcp

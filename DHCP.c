@@ -1,3 +1,9 @@
+/*
+    Author      : Justin Muskopf
+    Course      : CSCE 3530.501
+    Assignment  : Programming Assignment 4
+    Description : DHCP Simulator
+*/
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -13,12 +19,18 @@ typedef enum {FALSE, TRUE} BOOL;
 //IPs that are in use
 static char Used_Ips[NUM_STORED][IP_LEN];
 
+//Index of used IP array
+static int g_storedIdx = 0;
+
+//Stupid global bool because I'm lazy
+static BOOL g_first = TRUE;
+
 //Prototypes
 char *generateRandomIP(char *, char *);
 int  generateRandomID();
 
 //Size of packet
-const size_t PACKET_SIZE = sizeof(DHCP_Packet);
+//const size_t PACKET_SIZE = sizeof(DHCP_Packet);
 
 //Is the address valid (unused)?
 BOOL isValidIp(char *ip, char *gateway)
@@ -35,7 +47,7 @@ BOOL isValidIp(char *ip, char *gateway)
 		if (!strcmp(Used_Ips[i], ip))
 			return FALSE;
 	}
-	
+
 	return TRUE;
 }
 
@@ -51,12 +63,15 @@ void initSrvDHCP(DHCP_Packet *pkt, char *gateway, char *subnet)
     {
         bzero(pkt -> yiaddr[i], IP_LEN);
         strcpy(pkt -> yiaddr[i], generateRandomIP(gateway, subnet));
-        //inet_aton(generateRandomIP(gateway, subnet), &pkt -> yiaddr[i]);
     }
    
     pkt -> trans_id = 0;
     pkt -> ack = 0;
     pkt -> lifetime = 0;
+
+    g_first = TRUE;
+
+    return;
 }
 
 //Initialize the first client DHCP packet
@@ -72,6 +87,8 @@ void initCliDHCP(DHCP_Packet *pkt)
     strcpy(pkt -> yiaddr[0], "0.0.0.0");
     bzero(pkt -> yiaddr[1], IP_LEN);
     bzero(pkt -> yiaddr[2], IP_LEN);
+
+    return;
 }
 
 //Generate a random valid IP
@@ -81,7 +98,6 @@ char *generateRandomIP(char *gateway, char *subnet)
     int gateArr[4], subArr[4];
     sscanf(gateway, "%d.%d.%d.%d", &gateArr[0], &gateArr[1], &gateArr[2], &gateArr[3]);
     sscanf(subnet,  "%d.%d.%d.%d", &subArr[0],  &subArr[1],  &subArr[2],  &subArr[3]);
-
 
     //Find where the subnet stops
     int idx;
@@ -118,9 +134,14 @@ char *generateRandomIP(char *gateway, char *subnet)
     {
         numAddr *= 255;
     }
-    numAddr -= 2;
+    numAddr -= 2 + g_storedIdx;
 
-    printf("Available Hosts: %d\n", numAddr);
+    //Print num hosts to screen
+    if (g_first)
+    {
+        printf("Available Hosts: %d\n", numAddr);
+        g_first = FALSE;
+    }
 
 	//Create random IP
     char *randIP = malloc(sizeof(char) * IP_LEN);
@@ -143,7 +164,7 @@ char *generateRandomIP(char *gateway, char *subnet)
 }
 
 //Generate a random transaction ID
-int generateRandomID()
+int generateRandomID(void)
 {
     //Random ID from 100-999
     return (rand() % 900) + 100;
@@ -152,8 +173,9 @@ int generateRandomID()
 //Print packet information to screen
 void printPacket(DHCP_Packet pkt, char *title)
 {
+    printf("\n\n");
     printf("---------------------------\n");
-    printf("|%s\n", title);
+    printf("|DHCP %s\n", title);
     printf("---------------------------\n");
     if (pkt.trans_id)
         printf("|Transaction ID: %d\n", pkt.trans_id);
@@ -171,5 +193,19 @@ void printPacket(DHCP_Packet pkt, char *title)
         printf("|Lifetime: %d\n", pkt.lifetime);
 
     printf("---------------------------\n");
+    printf("\n\n");
 
+    return;
+}
+
+//Add accepted IP to the used IP array
+void acceptIP(char *ip)
+{
+    strcpy(Used_Ips[g_storedIdx], ip);
+    g_storedIdx++;
+
+    if (g_storedIdx >= NUM_STORED)
+        g_storedIdx = 0;
+
+    return;
 }
